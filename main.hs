@@ -52,7 +52,7 @@ data State = State {
    lastPosition :: IORef Position,
    shouldRotate :: IORef Bool,
    colorCycle :: IORef [Color4 GLclampf],
-   model :: IORef [IndexedFaceSet],
+   model :: IORef [X3DIndexedFaceSet],
    modifiers :: IORef Modifiers
    }
 
@@ -94,17 +94,21 @@ step = liftA2 (\e x -> if x < e then 0 else 1)
 dot :: (Applicative t, Foldable t, Num a) => t a -> t a -> a
 dot v1 v2 = sum (v1 $* v2)
 
-drawIndexedFaceSet :: [IndexedFaceSet] -> IO ()
+drawIndexedFaceSet :: [X3DIndexedFaceSet] -> IO ()
 drawIndexedFaceSet ifs = do
   (mapM (\indexedFaceSet ->
-             let facesPtr = (coordIndexPtr indexedFaceSet)
-                 Just coord = (coordinate indexedFaceSet)
-                 pointsPtr = (pointPtr coord)
-                 numFaces = fromIntegral (length (coordIndex indexedFaceSet))
+             let facesPtr = (ifsCoordIndexPtr indexedFaceSet)
+                 Just coord = (ifsCoordinate indexedFaceSet)
+                 pointsPtr = (cPointPtr coord)
+                 Just normals = (ifsNormal indexedFaceSet)
+                 normalsPtr = (nVectorPtr normals)
+                 numFaces = fromIntegral (length (ifsCoordIndex indexedFaceSet))
              in do
                clientState VertexArray $= Enabled
                clientState IndexArray $= Enabled
+               clientState NormalArray $= Enabled
                arrayPointer VertexArray $= VertexArrayDescriptor 3 Float 0 pointsPtr
+               arrayPointer NormalArray $= VertexArrayDescriptor 3 Float 0 normalsPtr
                drawElements Triangles numFaces UnsignedInt facesPtr
         )
    ifs)
@@ -314,20 +318,20 @@ main = do
    motionCallback $= Just (motion state)
    addTimerCallback timerFrequencyMillis (timer state)
 
-   -- catch
-   --     (do checkGLSLSupport
-   --         vs <- readAndCompileShader "Brick.vert"
-   --         fs <- readAndCompileShader "Brick.frag"
-   --         installBrickShaders [vs] [fs])
-   --     (\exception -> do
-   --        print exception
-   --        putStrLn "Using fixed function pipeline."
-   --        materialDiffuse Front $= Color4 1 0.3 0.2 1
-   --        materialSpecular Front $= Color4 0.3 0.3 0.3 1
-   --        materialShininess Front $= 16
-   --        position (Light 0) $= Vertex4 0 0 4 0
-   --        lighting $= Enabled
-   --        light (Light 0) $= Enabled)
+   catch
+       (do checkGLSLSupport
+           vs <- readAndCompileShader "Brick.vert"
+           fs <- readAndCompileShader "Brick.frag"
+           installBrickShaders [vs] [fs])
+       (\exception -> do
+          print exception
+          putStrLn "Using fixed function pipeline."
+          materialDiffuse Front $= Color4 1 0.3 0.2 1
+          materialSpecular Front $= Color4 0.3 0.3 0.3 1
+          materialShininess Front $= 16
+          position (Light 0) $= Vertex4 0 0 4 0
+          lighting $= Enabled
+          light (Light 0) $= Enabled)
 
    depthFunc $= Just Less
    nextClearColor state

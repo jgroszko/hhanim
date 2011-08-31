@@ -1,11 +1,12 @@
 {-# LANGUAGE Arrows, NoMonomorphismRestriction #-}
-module Model ( IndexedFaceSet
-             , coordIndex
-             , coordIndexPtr
-             , coordinate
-             , pointPtr
+module Model ( X3DIndexedFaceSet
+             , ifsCoordIndex
+             , ifsCoordIndexPtr
+             , ifsCoordinate
+             , cPointPtr
+             , ifsNormal
+             , nVectorPtr
              , loadIndexedFaceSet
-             , listToTriangles
              ) where
 
 import Char
@@ -20,22 +21,28 @@ import Data.List.Split
 
 import Graphics.UI.GLUT
 
-data IndexedFaceSet = IndexedFaceSet
-                      { solid :: Bool
-                      , creaseAngle :: Float
-                      , texCoordIndex :: [Int]
-                      , coordIndex :: [GLuint]
-                      , coordIndexPtr :: Ptr GLuint
-                      , coordinate :: Maybe Coordinate
-                      }
+data X3DIndexedFaceSet = X3DIndexedFaceSet
+    { ifsSolid :: Bool
+    , ifsCreaseAngle :: Float
+    , ifsTexCoordIndex :: [Int]
+    , ifsCoordIndex :: [GLuint]
+    , ifsCoordIndexPtr :: Ptr GLuint
+    , ifsCoordinate :: Maybe X3DCoordinate
+    , ifsNormal :: Maybe X3DNormal
+    }
                       deriving (Show)
 
-data Coordinate = Coordinate
-                  { def :: String
-                  , point :: [Float]
-                  , pointPtr :: Ptr Float
-                  }
+data X3DCoordinate = X3DCoordinate
+    { cPoint :: [Float]
+    , cPointPtr :: Ptr Float
+    }
                   deriving (Show)
+
+data X3DNormal = X3DNormal
+    { nVector :: [Float]
+    , nVectorPtr :: Ptr Float
+    }
+              deriving (Show)
 
 stringToBool :: (Arrow a) => a String Bool
 stringToBool = arr ( \ x -> (compare (map Char.toLower x) "true" == EQ) )
@@ -73,22 +80,32 @@ getIndexedFaceSet = atTag "IndexedFaceSet"
                       coordIndex <- listToTriangles <<< stringToList <<< getAttrValue "coordIndex" -< x
                       coordIndicesPtr <- (arrIO newArray) -< coordIndex
                       coordinate <- getCoordinate -< x
-                      returnA -< IndexedFaceSet { solid = solid
-                                                , creaseAngle = creaseAngle
-                                                , texCoordIndex = texCoordIndex
-                                                , coordIndex = coordIndex
-                                                , coordIndexPtr = coordIndicesPtr
-                                                , coordinate = Just coordinate }
+                      normal <- getNormal -< x
+                      returnA -< X3DIndexedFaceSet { ifsSolid = solid
+                                                   , ifsCreaseAngle = creaseAngle
+                                                   , ifsTexCoordIndex = texCoordIndex
+                                                   , ifsCoordIndex = coordIndex
+                                                   , ifsCoordIndexPtr = coordIndicesPtr
+                                                   , ifsCoordinate = Just coordinate
+                                                   , ifsNormal = Just normal }
 
 getCoordinate = atTag "Coordinate"
                 >>>
                 proc x -> do                 
                   points <- stringToList <<< getAttrValue "point" -< x
                   pointsPtr <- (arrIO newArray) -< points
-                  def <- getAttrValue "DEF" -< x
-                  returnA -< Coordinate { point = points, pointPtr = pointsPtr, def = def }
+                  returnA -< X3DCoordinate { cPoint = points
+                                           , cPointPtr = pointsPtr }
 
-loadIndexedFaceSet :: String -> IO [IndexedFaceSet]
+getNormal = atTag "Normal"
+            >>>
+            proc x -> do
+              vectors <- stringToList <<< getAttrValue "vector" -< x
+              vectorsPtr <- (arrIO newArray) -< vectors
+              returnA -< X3DNormal { nVector = vectors
+                                   , nVectorPtr = vectorsPtr }
+
+loadIndexedFaceSet :: String -> IO [X3DIndexedFaceSet]
 loadIndexedFaceSet file = runX (
   readDocument [ withValidate no 
                , withCurl [] ]
