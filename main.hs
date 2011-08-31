@@ -96,21 +96,19 @@ dot v1 v2 = sum (v1 $* v2)
 
 drawIndexedFaceSet :: [IndexedFaceSet] -> IO ()
 drawIndexedFaceSet ifs = do
-  renderPrimitive Triangles $ do
-                           (mapM (\indexedFaceSet ->
-                                          let Just coord = (coordinate indexedFaceSet)
-                                              vs = (point coord)
-                                          in
-                                            (mapM (\face -> do
-                                                     (mapM (\i -> let x:y:z:[] = (vs !! (face !! i))
-                                                                  in do
-                                                                    vertex (Vertex3 x y z)
-                                                           )
-                                                      [0..2])
-                                                  )
-                                             (coordIndex indexedFaceSet)))
-                            ifs)
-                           return ()
+  (mapM (\indexedFaceSet ->
+             let facesPtr = (coordIndexPtr indexedFaceSet)
+                 Just coord = (coordinate indexedFaceSet)
+                 pointsPtr = (pointPtr coord)
+                 numFaces = fromIntegral (length (coordIndex indexedFaceSet))
+             in do
+               clientState VertexArray $= Enabled
+               clientState IndexArray $= Enabled
+               arrayPointer VertexArray $= VertexArrayDescriptor 3 Float 0 pointsPtr
+               drawElements Triangles numFaces UnsignedInt facesPtr
+        )
+   ifs)
+  return ()
 
 display :: State -> DisplayCallback
 display state = do
