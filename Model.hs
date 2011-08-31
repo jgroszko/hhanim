@@ -84,36 +84,25 @@ maybeProperty f = arrIO (\x -> case x of
                                  Just y -> do
                                    return (Just (f y)))
 
+applyIndices points index dimensions = foldl (\xs ui ->
+                                                  let i = fromIntegral ui in
+                                                  xs ++ [ (points !! ((i*dimensions)+n)) | n <- [0..(dimensions-1)] ]
+                                             )
+                                       []
+                                       index
+                              
+
 processTexCoords = arr (\ (vertices, normals, indices, texCoords, texCoordIndices) ->
-                            ((foldl (\vs ui ->
-                                         let i = fromIntegral ui in
-                                         vs ++ [vertices !! (i*3)
-                                               , vertices !! ((i*3)+1)
-                                               , vertices !! ((i*3)+2)]
-                                    )
-                              []
-                              indices),
+                            (applyIndices vertices indices 3,
                              case normals of
                                Nothing -> Nothing
                                Just normals ->
-                                   Just (foldl (\ns ui ->
-                                                    let i = fromIntegral ui in
-                                                    ns ++ [ normals !! (i*3)
-                                                          , normals !! ((i*3)+1)
-                                                          , normals !! ((i*3)+2)]
-                                               )
-                                         []
-                                         indices),
+                                   Just (applyIndices normals indices 3),
                              [0..(fromIntegral (length indices))::GLuint],
                              case texCoords of
                                Nothing -> Nothing
                                Just texCoords ->
-                                   Just (foldl (\tcs ui -> 
-                                                    let i = (fromIntegral ui)::Int in
-                                                    tcs ++ [ texCoords !! (i*2)
-                                                           , texCoords !! ((i*2)+1) ])
-                                         []
-                                         texCoordIndices)
+                                   Just (applyIndices texCoords texCoordIndices 2)
                             ))
 
 getIndexedFaceSet = atTag "IndexedFaceSet"
