@@ -20,6 +20,8 @@ import Data.List.Split
 
 import Graphics.UI.GLUT
 
+import CalculateNormals
+
 data X3DIndexedFaceSet = X3DIndexedFaceSet
     { ifsVertices :: Ptr Float
     , ifsIndices :: Ptr GLuint
@@ -56,14 +58,10 @@ stringToList = arr ( \ x ->
                      words $
                      filter (/= ',') x )
 
-listToTriples :: (Arrow a) => a [b] [[b]]
-listToTriples = proc x -> do
-                  returnA -< splitEvery 3 x
-
 mixedListToTriangles :: [[GLuint]] -> [GLuint]
 mixedListToTriangles ([]) = []
 mixedListToTriangles ((a:b:c:[]):xs) = [a,b,c] ++ (mixedListToTriangles xs)
-mixedListToTriangles ((a:b:c:d:[]):xs) = [a,b,c,a,d,c] ++ (mixedListToTriangles xs)
+mixedListToTriangles ((a:b:c:d:[]):xs) = [a,b,c,a,c,d] ++ (mixedListToTriangles xs)
 
 listToTriangles :: (Arrow a) => a [GLuint] [GLuint]
 listToTriangles = proc x -> do
@@ -89,10 +87,9 @@ applyIndices points index dimensions = foldl (\xs ui ->
                                                   xs ++ [ (points !! ((i*dimensions)+n)) | n <- [0..(dimensions-1)] ]
                                              )
                                        []
-                                       index
-                              
+                                       index                              
 
-processTexCoords = arr (\ (vertices, normals, indices, texCoords, texCoordIndices) ->
+applyAllIndices = arr (\ (vertices, normals, indices, texCoords, texCoordIndices) ->
                             (applyIndices vertices indices 3,
                              case normals of
                                Nothing -> Nothing
@@ -121,8 +118,18 @@ getIndexedFaceSet = atTag "IndexedFaceSet"
                       texCoords <- maybeProperty tcPoint -< texCoord
                       texCoordIndices <- listToTriangles <<< stringToList <<< getAttrValue "texCoordIndex" -< x
 
-                      (vertices, normals, indices, texCoords) <- processTexCoords -<
-                                                        (vertices, normals, indices, texCoords, texCoordIndices)
+                      -- Reasons to apply indices:
+                      -- - Per-Face (Texture Coordinates, Normals, Colors)
+                      (vertices, normals, indices, texCoords) 
+                              <- if (texCoordIndices == [])
+                                 then applyAllIndices -< (vertices, normals, indices, texCoords, texCoordIndices)
+                                 else returnA -< (vertices, normals, indices, texCoords)
+
+                      normals <- if (normals == Nothing)
+                                 then (arr (\(vs, is) ->
+                                                let integralIs = [ fromIntegral i | i <- is] in
+                                                Just (calculateNormals vs integralIs))) -< (vertices, indices)
+                                 else returnA -< normals
 
                       finalVertices <- (arrIO newArray) -< vertices
                       finalIndices <- (arrIO newArray) -< indices
