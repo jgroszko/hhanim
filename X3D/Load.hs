@@ -1,12 +1,7 @@
 {-# LANGUAGE Arrows, NoMonomorphismRestriction #-}
-module Model ( X3DIndexedFaceSet
-             , ifsVertices
-             , ifsIndices
-             , ifsIndicesCount
-             , ifsNormals
-             , ifsTexCoords
-             , loadIndexedFaceSet
-             ) where
+module X3D.Load ( module X3D.Types
+                , loadShape
+                ) where
 
 import Char
 import Control.Arrow
@@ -20,31 +15,8 @@ import Data.List.Split
 
 import Graphics.UI.GLUT
 
-import CalculateNormals
-
-data X3DIndexedFaceSet = X3DIndexedFaceSet
-    { ifsVertices :: Ptr Float
-    , ifsIndices :: Ptr GLuint
-    , ifsIndicesCount :: Int
-    , ifsTexCoords :: Maybe (Ptr Float)
-    , ifsNormals :: Maybe (Ptr Float)
-    }
-                      deriving (Show)
-
-data X3DCoordinate = X3DCoordinate
-    { cPoint :: [Float]
-    }
-                  deriving (Show)
-
-data X3DNormal = X3DNormal
-    { nVector :: [Float]
-    }
-              deriving (Show)
-
-data X3DTextureCoordinate = X3DTextureCoordinate
-    { tcPoint :: [Float]
-    }
-                            deriving (Show)
+import X3D.Types
+import X3D.CalculateNormals
 
 stringToBool :: (Arrow a) => a String Bool
 stringToBool = arr ( \ x -> (compare (map Char.toLower x) "true" == EQ) )
@@ -101,6 +73,28 @@ applyAllIndices = arr (\ (vertices, normals, indices, texCoords, texCoordIndices
                                Just texCoords ->
                                    Just (applyIndices texCoords texCoordIndices 2)
                             ))
+
+getShape = atTag "Shape"
+           >>>
+           proc x -> do
+             appearance <- getAppearance -< x
+             geometry <- getIndexedFaceSet -< x
+             returnA -< X3DShape { sAppearance = appearance
+                                 , sGeometry = geometry }
+
+getAppearance = (atTag "Appearance"
+                 >>>
+                 proc x -> do
+                   imageTexture <- getImageTexture -< x
+                   returnA -< Just X3DAppearance { aImageTexture = imageTexture }
+                ) `orElse` (constA Nothing)
+
+getImageTexture = (atTag "ImageTexture"
+                   >>>
+                   proc x -> do
+                     url <- getAttrValue "url" -< x
+                     returnA -< Just X3DImageTexture { itUrl = url }
+                  ) `orElse` (constA Nothing)
 
 getIndexedFaceSet = atTag "IndexedFaceSet"
                     >>>
@@ -163,11 +157,11 @@ getNormal = (atTag "Normal"
               returnA -< Just X3DNormal { nVector = vectors }
             ) `orElse` (constA Nothing)
 
-loadIndexedFaceSet :: String -> IO [X3DIndexedFaceSet]
-loadIndexedFaceSet file = runX (
+loadShape :: String -> IO [X3DShape]
+loadShape file = runX (
   readDocument [ withValidate no 
                , withCurl [] ]
     file
   >>>
-  getIndexedFaceSet
+  getShape
   )

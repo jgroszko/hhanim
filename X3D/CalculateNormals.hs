@@ -1,4 +1,4 @@
-module CalculateNormals ( calculateNormals
+module X3D.CalculateNormals ( calculateNormals
                         ) where
 
 unitLength :: (Floating a) => [a] -> a

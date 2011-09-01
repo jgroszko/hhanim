@@ -15,7 +15,7 @@ import Graphics.UI.GLUT
 import Text.Printf
 import Foreign (Ptr, newArray)
 
-import Model
+import X3D.Load
 
 infixl 6 $+, $-
 infixl 7 $*
@@ -52,7 +52,7 @@ data State = State {
    lastPosition :: IORef Position,
    shouldRotate :: IORef Bool,
    colorCycle :: IORef [Color4 GLclampf],
-   model :: IORef [X3DIndexedFaceSet],
+   model :: IORef [X3DShape],
    modifiers :: IORef Modifiers
    }
 
@@ -66,7 +66,7 @@ makeState = do
    lp <- newIORef (Position (-1) (-1))
    sr <- newIORef True
    cc <- newIORef (cycle clearColors)
-   model <- (loadIndexedFaceSet "models/cube.x3d")
+   model <- (loadShape "models/cube.x3d")
    modelRef <- newIORef model
    mo <- newIORef (Modifiers Up Up Up)
    return $ State {
@@ -94,31 +94,38 @@ step = liftA2 (\e x -> if x < e then 0 else 1)
 dot :: (Applicative t, Foldable t, Num a) => t a -> t a -> a
 dot v1 v2 = sum (v1 $* v2)
 
-drawIndexedFaceSet :: [X3DIndexedFaceSet] -> IO ()
-drawIndexedFaceSet ifs = do
-  (mapM (\indexedFaceSet ->
-             let vertices = (ifsVertices indexedFaceSet)
-                 indices = (ifsIndices indexedFaceSet)
-                 indicesCount = fromIntegral (ifsIndicesCount indexedFaceSet)
-             in do
-               clientState VertexArray $= Enabled
-               arrayPointer VertexArray $= VertexArrayDescriptor 3 Float 0 vertices
-
-               case (ifsNormals indexedFaceSet) of
-                 Nothing -> do clientState NormalArray $= Disabled
-                 Just normals -> do clientState NormalArray $= Enabled
-                                    arrayPointer NormalArray $= VertexArrayDescriptor 3 Float 0 normals
-
-               case (ifsTexCoords indexedFaceSet) of
-                 Nothing -> do clientState TextureCoordArray $= Disabled
-                 Just texCoords -> do clientState TextureCoordArray $= Enabled
-                                      arrayPointer TextureCoordArray $= VertexArrayDescriptor 2 Float 0 texCoords
-
-               clientState IndexArray $= Enabled
-               drawElements Triangles indicesCount UnsignedInt indices
+drawShapes :: [X3DShape] -> IO ()
+drawShapes shapes = do
+  (mapM (\shape -> do
+           drawIndexedFaceSet (sGeometry shape)
+           return ()
         )
-   ifs)
+   shapes)
   return ()
+
+drawIndexedFaceSet :: X3DIndexedFaceSet -> IO ()
+drawIndexedFaceSet indexedFaceSet =
+  let vertices = (ifsVertices indexedFaceSet)
+      indices = (ifsIndices indexedFaceSet)
+      indicesCount = fromIntegral (ifsIndicesCount indexedFaceSet)
+  in do
+    clientState VertexArray $= Enabled
+    arrayPointer VertexArray $= VertexArrayDescriptor 3 Float 0 vertices
+
+    case (ifsNormals indexedFaceSet) of
+      Nothing -> do clientState NormalArray $= Disabled
+      Just normals -> do clientState NormalArray $= Enabled
+                         arrayPointer NormalArray $= VertexArrayDescriptor 3 Float 0 normals
+
+    case (ifsTexCoords indexedFaceSet) of
+      Nothing -> do clientState TextureCoordArray $= Disabled
+      Just texCoords -> do clientState TextureCoordArray $= Enabled
+                           arrayPointer TextureCoordArray $= VertexArrayDescriptor 2 Float 0 texCoords
+
+    clientState IndexArray $= Enabled
+    drawElements Triangles indicesCount UnsignedInt indices
+  
+    return ()
 
 display :: State -> DisplayCallback
 display state = do
@@ -135,8 +142,8 @@ display state = do
 
    clear [ ColorBuffer, DepthBuffer ]
    
-   ifs <- get (model state)
-   drawIndexedFaceSet ifs
+   shapes <- get (model state)
+   drawShapes shapes
 
    flush
    swapBuffers
