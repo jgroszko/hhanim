@@ -16,6 +16,7 @@ import Text.Printf
 import Foreign (Ptr, newArray)
 
 import X3D.Load
+import X3D.Draw
 
 infixl 6 $+, $-
 infixl 7 $*
@@ -93,39 +94,6 @@ step = liftA2 (\e x -> if x < e then 0 else 1)
 
 dot :: (Applicative t, Foldable t, Num a) => t a -> t a -> a
 dot v1 v2 = sum (v1 $* v2)
-
-drawShapes :: [X3DShape] -> IO ()
-drawShapes shapes = do
-  (mapM (\shape -> do
-           drawIndexedFaceSet (sGeometry shape)
-           return ()
-        )
-   shapes)
-  return ()
-
-drawIndexedFaceSet :: X3DIndexedFaceSet -> IO ()
-drawIndexedFaceSet indexedFaceSet =
-  let vertices = (ifsVertices indexedFaceSet)
-      indices = (ifsIndices indexedFaceSet)
-      indicesCount = fromIntegral (ifsIndicesCount indexedFaceSet)
-  in do
-    clientState VertexArray $= Enabled
-    arrayPointer VertexArray $= VertexArrayDescriptor 3 Float 0 vertices
-
-    case (ifsNormals indexedFaceSet) of
-      Nothing -> do clientState NormalArray $= Disabled
-      Just normals -> do clientState NormalArray $= Enabled
-                         arrayPointer NormalArray $= VertexArrayDescriptor 3 Float 0 normals
-
-    case (ifsTexCoords indexedFaceSet) of
-      Nothing -> do clientState TextureCoordArray $= Disabled
-      Just texCoords -> do clientState TextureCoordArray $= Enabled
-                           arrayPointer TextureCoordArray $= VertexArrayDescriptor 2 Float 0 texCoords
-
-    clientState IndexArray $= Enabled
-    drawElements Triangles indicesCount UnsignedInt indices
-  
-    return ()
 
 display :: State -> DisplayCallback
 display state = do
