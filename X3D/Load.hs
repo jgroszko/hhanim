@@ -1,10 +1,14 @@
 {-# LANGUAGE Arrows, NoMonomorphismRestriction #-}
 module X3D.Load ( module X3D.Types
-                , loadShape
+                , loadTransform
                 ) where
+
+import System.FilePath.Posix
+import System.Directory
 
 import Char
 import Control.Arrow
+import Control.Exception
 
 import Text.XML.HXT.Core
 import Text.XML.HXT.Curl
@@ -17,6 +21,7 @@ import Graphics.UI.GLUT
 
 import X3D.Types
 import X3D.CalculateNormals
+import X3D.Matrices
 
 stringToBool :: (Arrow a) => a String Bool
 stringToBool = arr ( \ x -> (compare (map Char.toLower x) "true" == EQ) )
@@ -25,10 +30,8 @@ stringToFloat :: (Arrow a) => a String Float
 stringToFloat = arr ( \ x -> read x::Float )
 
 stringToList :: (Arrow a) => (Read b) => a String [b]
-stringToList = arr ( \ x ->
-                     map read $
-                     words $
-                     filter (/= ',') x )
+stringToList = arr (\x -> map read 
+                          (split (dropDelims $ dropBlanks $ oneOf ", \n\r\t") x))
 
 mixedListToTriangles :: [[GLuint]] -> [GLuint]
 mixedListToTriangles ([]) = []
@@ -73,6 +76,63 @@ applyAllIndices = arr (\ (vertices, normals, indices, texCoords, texCoordIndices
                                Just texCoords ->
                                    Just (applyIndices texCoords texCoordIndices 2)
                             ))
+
+getTranslation = stringToList
+                 >>>
+                 arr (\x -> case x of
+                              x:y:z:[] -> matTranslation x y z
+                              _ -> matIdentity
+                     )
+
+-- Easier than calculating the inverse
+getNegativeTranslation = stringToList
+                         >>>
+                         arr (\x -> case x of
+                                      x:y:z:[] -> matTranslation (-x) (-y) (-z)
+                                      _ -> matIdentity
+                             )
+
+getScale = stringToList
+           >>>
+           arr (\x -> case x of
+                        x:y:z:[] -> matScale x y z
+                        s:[] -> matScale s s s
+                        _ -> matIdentity
+               )
+
+getRotation = stringToList
+              >>>
+              arr (\x -> case x of
+                           x:y:z:a:[] -> matRotation a x y z
+                           _ -> matIdentity
+                  )
+-- Easier than calculating the inverse
+getNegativeRotation = stringToList
+                      >>>
+                      arr (\x -> case x of
+                                   x:y:z:a:[] -> matRotation (-a) x y z
+                                   _ -> matIdentity
+                          )
+
+getTransform = atTag "Transform"
+               >>>
+               proc x -> do
+                 t <- getTranslation <<< getAttrValue "translation" -< x
+                 c <- getTranslation <<< getAttrValue "center" -< x
+                 nc <- getNegativeTranslation <<< getAttrValue "center" -< x
+                 r <- getRotation <<< getAttrValue "rotation" -< x
+                 sr <- getRotation <<< getAttrValue "scaleOrientation" -< x
+                 nsr <- getNegativeRotation <<< getAttrValue "scaleOrientation" -< x
+                 s <- getScale <<< getAttrValue "scale" -< x
+
+                 m <- arrIO (\x ->
+                             newMatrix RowMajor (map realToFrac (matToFloat x)) :: IO (GLmatrix GLfloat))
+                      -< (t `matMult` c `matMult` r `matMult` sr `matMult` s `matMult` nsr `matMult` nc)
+
+                 shape <- getShape -< x
+
+                 returnA -< X3DTransform { tMatrix = m
+                                         , tShapes = [shape] }
 
 getShape = atTag "Shape"
            >>>
@@ -157,11 +217,18 @@ getNormal = (atTag "Normal"
               returnA -< Just X3DNormal { nVector = vectors }
             ) `orElse` (constA Nothing)
 
-loadShape :: String -> IO [X3DShape]
-loadShape file = runX (
-  readDocument [ withValidate no 
-               , withCurl [] ]
-    file
-  >>>
-  getShape
-  )
+loadTransform :: String -> IO [X3DTransform]
+loadTransform file = let (dir, filename) = splitFileName file in
+                     do
+                       olddir <- getCurrentDirectory
+                       setCurrentDirectory dir
+                       transform <- runX (             
+                                          readDocument [ withValidate no 
+                                                       , withCurl [] ]
+                                          filename
+                                          >>>
+                                          getTransform
+                                         )
+                       setCurrentDirectory olddir
+                       return transform
+                   

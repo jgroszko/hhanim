@@ -1,4 +1,5 @@
-module X3D.Draw ( drawShapes
+module X3D.Draw ( drawTransform
+                , drawShape
                 , drawIndexedFaceSet
                 ) where
 
@@ -6,14 +7,17 @@ import Graphics.UI.GLUT
 
 import X3D.Types
 
-drawShapes :: [X3DShape] -> IO ()
-drawShapes shapes = do
-  (mapM (\shape -> do
-           drawIndexedFaceSet (sGeometry shape)
-           return ()
-        )
-   shapes)
+drawTransform :: X3DTransform -> IO ()
+drawTransform transform = do
+  preservingMatrix (do
+                     multMatrix (tMatrix transform) 
+                     mapM drawShape (tShapes transform)
+                   )
   return ()
+
+drawShape :: X3DShape -> IO ()
+drawShape shape = do
+  drawIndexedFaceSet (sGeometry shape)
 
 drawIndexedFaceSet :: X3DIndexedFaceSet -> IO ()
 drawIndexedFaceSet indexedFaceSet =

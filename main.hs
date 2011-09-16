@@ -53,7 +53,7 @@ data State = State {
    lastPosition :: IORef Position,
    shouldRotate :: IORef Bool,
    colorCycle :: IORef [Color4 GLclampf],
-   model :: IORef [X3DShape],
+   model :: IORef [X3DTransform],
    modifiers :: IORef Modifiers
    }
 
@@ -67,7 +67,7 @@ makeState = do
    lp <- newIORef (Position (-1) (-1))
    sr <- newIORef True
    cc <- newIORef (cycle clearColors)
-   model <- (loadShape "models/cube.x3d")
+   model <- (loadTransform "models/cube.x3d")
    modelRef <- newIORef model
    mo <- newIORef (Modifiers Up Up Up)
    return $ State {
@@ -110,8 +110,8 @@ display state = do
 
    clear [ ColorBuffer, DepthBuffer ]
    
-   shapes <- get (model state)
-   drawShapes shapes
+   transforms <- get (model state)
+   mapM drawTransform transforms
 
    flush
    swapBuffers
