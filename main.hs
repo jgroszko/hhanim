@@ -16,7 +16,6 @@ import Text.Printf
 import Foreign (Ptr, newArray)
 
 import X3D.Load
-import X3D.Draw
 
 infixl 6 $+, $-
 infixl 7 $*
@@ -53,12 +52,12 @@ data State = State {
    lastPosition :: IORef Position,
    shouldRotate :: IORef Bool,
    colorCycle :: IORef [Color4 GLclampf],
-   model :: IORef [X3DTransform],
+   model :: IORef [X3DChildNode],
    modifiers :: IORef Modifiers
    }
 
-makeState :: IO State
-makeState = do
+makeState :: String -> IO State
+makeState file = do
    di <- newIORef initialDiff
    li <- newIORef (pure 0)
    ia <- newIORef initialInertia
@@ -67,7 +66,7 @@ makeState = do
    lp <- newIORef (Position (-1) (-1))
    sr <- newIORef True
    cc <- newIORef (cycle clearColors)
-   model <- (loadTransform "models/cube.x3d")
+   model <- (loadTransform file)
    modelRef <- newIORef model
    mo <- newIORef (Modifiers Up Up Up)
    return $ State {
@@ -286,13 +285,17 @@ installBrickShaders vs fs = do
 
 main :: IO ()
 main = do
-   getArgsAndInitialize
+   (_, args) <- getArgsAndInitialize
    initialDisplayMode $= [ RGBMode, WithDepthBuffer, DoubleBuffered ]
    initialWindowSize $= Size 500 500
    createWindow "Haskell H-Anim Viewer"
 
+   file <- pure (if (length args) == 1
+                 then (args !! 0)
+                 else "models/cube.x3d")
+
    -- Note: We don't use an idle callback, we redisplay more intelligently.
-   state <- makeState
+   state <- makeState file
    displayCallback $= display state
    keyboardMouseCallback $= Just (keyboard state)
    reshapeCallback $= Just reshape
