@@ -13,17 +13,7 @@ unitVector [a, b, c] = let len = unitLength [a, b, c] in
 addVector :: (Num t) => [t] -> [t] -> [t]
 addVector [ax,ay,az] [bx,by,bz] = [ax+bx,ay+by,az+bz]
 
-listToTriples :: [a] -> [[a]]
-listToTriples list = [ [ list !! (i*3)
-                       , list !! ((i*3)+1)
-                       , list !! ((i*3)+2) ]
-                       | i <- [0 .. (((length list) `div` 3) - 1)] ]
-
-facesContaining :: Eq a => a -> [a] -> [[a]]
-facesContaining index indices = [ face
-                                  | face <- (listToTriples indices), (elem index face) ]
-
-triangleNormal :: Num t => [[t]] -> [t]
+triangleNormal :: Floating t => [[t]] -> [t]
 triangleNormal [[ax,ay,az], [bx, by, bz], [cx, cy, cz]] =
     let xx = (bx-ax)
         xy = (by-ay)
@@ -31,23 +21,24 @@ triangleNormal [[ax,ay,az], [bx, by, bz], [cx, cy, cz]] =
         yx = (cx-ax)
         yy = (cy-ay)
         yz = (cz-az)
-    in [ ((xy*yz) - (xz*yy))
-       , ((xz*yx) - (xx*yz))
-       , ((xx*yy) - (xy*yx)) ]
+    in
+      [ ((xy*yz) - (xz*yy))
+      , ((xz*yx) - (xx*yz))
+      , ((xx*yy) - (xy*yx)) ]
     
-faceToVertices :: [t] -> [Int] -> [[t]]
-faceToVertices vertices face = [ [ vertices !! (i*3)
-                                 , vertices !! ((i*3)+1)
-                                 , vertices !! ((i*3)+2) ]
-                                 | i <- face ]
+normalFacePairs :: Floating a => [a] -> [Int] -> [([Int],[a])]
+normalFacePairs vertices indices = [ let is = [ indices !! (i*3)
+                                             , indices !! ((i*3)+1)
+                                             , indices !! ((i*3)+2)]
+                                    in (is, (triangleNormal (faceToVertices vertices is)))
+                                    | i <- [0..(((length indices) `div` 3) - 1)]]
+
+pairsToNormals index pairs = [ normal
+                               | (face, normal) <- pairs, (elem index face) ]
 
 calculateNormals :: Floating a => [a] -> [Int] -> [a]
-calculateNormals vertices indices = let vs = listToTriples vertices in
-                                    (foldl (\ns i ->
-                                                ns ++ (unitVector (foldl (\xs x ->
-                                                                  (addVector xs (triangleNormal (faceToVertices vertices x)))
-                                                             )
-                                                       [0.0,0.0,0.0]
-                                                       (facesContaining i indices))))
-                                     []
-                                     [0 .. (((length vertices) `div` 3) - 1)])
+calculateNormals vertices indices = let numVertices = (((length vertices) `div` 3) - 1)
+                                        nfps = normalFacePairs vertices indices
+                                    in
+                                      concat [ unitVector (foldr addVector [0.0,0.0,0.0] (pairsToNormals i nfps))
+                                               | i <- [0..numVertices] ]
