@@ -111,7 +111,7 @@ display state = do
    clear [ ColorBuffer, DepthBuffer ]
    
    transforms <- get (model state)
-   mapM drawTransform transforms
+   mapM draw transforms
 
    flush
    swapBuffers

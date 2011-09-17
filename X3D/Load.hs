@@ -22,6 +22,7 @@ import Graphics.UI.GLUT
 import X3D.Types
 import X3D.CalculateNormals
 import X3D.Matrices
+import X3D.Draw
 
 stringToBool :: (Arrow a) => a String Bool
 stringToBool = arr ( \ x -> (compare (map Char.toLower x) "true" == EQ) )
@@ -132,7 +133,7 @@ getTransform = atTag "Transform"
                  shape <- getShape -< x
 
                  returnA -< X3DTransform { tMatrix = m
-                                         , tShapes = [shape] }
+                                         , tChildren = [X3DChildNode shape] }
 
 getShape = atTag "Shape"
            >>>
@@ -231,4 +232,4 @@ loadTransform file = let (dir, filename) = splitFileName file in
                                          )
                        setCurrentDirectory olddir
                        return transform
-                   
+
