@@ -25,7 +25,13 @@ triangleNormal [[ax,ay,az], [bx, by, bz], [cx, cy, cz]] =
       [ ((xy*yz) - (xz*yy))
       , ((xz*yx) - (xx*yz))
       , ((xx*yy) - (xy*yx)) ]
-    
+
+faceToVertices :: [t] -> [Int] -> [[t]]
+faceToVertices vertices face = [ [ vertices !! (i*3)
+                                 , vertices !! ((i*3)+1)
+                                 , vertices !! ((i*3)+2) ]
+                                 | i <- face ]
+
 normalFacePairs :: Floating a => [a] -> [Int] -> [([Int],[a])]
 normalFacePairs vertices indices = [ let is = [ indices !! (i*3)
                                              , indices !! ((i*3)+1)
