@@ -302,20 +302,20 @@ main = do
    motionCallback $= Just (motion state)
    addTimerCallback timerFrequencyMillis (timer state)
 
-   catch
-       (do checkGLSLSupport
-           vs <- readAndCompileShader "Brick.vert"
-           fs <- readAndCompileShader "Brick.frag"
-           installBrickShaders [vs] [fs])
-       (\exception -> do
-          print exception
-          putStrLn "Using fixed function pipeline."
-          materialDiffuse Front $= Color4 1 0.3 0.2 1
-          materialSpecular Front $= Color4 0.3 0.3 0.3 1
-          materialShininess Front $= 16
-          position (Light 0) $= Vertex4 0 0 4 0
-          lighting $= Enabled
-          light (Light 0) $= Enabled)
+   -- catch
+   --     (do checkGLSLSupport
+   --         vs <- readAndCompileShader "Brick.vert"
+   --         fs <- readAndCompileShader "Brick.frag"
+   --         installBrickShaders [vs] [fs])
+   --     (\exception -> do
+   --        print exception
+   putStrLn "Using fixed function pipeline."
+   materialDiffuse Front $= Color4 0.8 0.8 0.8 1
+   materialSpecular Front $= Color4 0.4 0.4 0.4 1
+   materialShininess Front $= 16
+   position (Light 0) $= Vertex4 0 0 4 0
+   lighting $= Enabled
+   light (Light 0) $= Enabled
 
    depthFunc $= Just Less
    nextClearColor state
