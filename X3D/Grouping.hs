@@ -14,6 +14,25 @@ import X3D.LoadUtil
 import X3D.Matrices
 import X3D.Shape
 
+data X3DGroup = X3DGroup { gChildren :: [X3DChildNode]
+                         }
+                deriving (Show)
+                         
+drawGroup :: X3DGroup -> IO ()
+drawGroup group = do
+  mapM draw (gChildren group)
+  return ()
+
+instance X3DChildNode_ X3DGroup where
+    draw = drawGroup
+
+getGroup = atTag "Group"
+           >>>
+           proc x -> do
+             children <- listA getChildNode -< x
+
+             returnA -< X3DChildNode X3DGroup { gChildren = children }
+
 data X3DTransform = X3DTransform { tMatrix :: GLmatrix GLfloat
                                  , tChildren :: [X3DChildNode]
                                  }
@@ -69,7 +88,7 @@ getNegativeRotation = stringToList
 
 getChildNode = getChildren
                >>>
-               getTransform `orElse` getShape
+               getGroup `orElse` getTransform `orElse` getShape
 
 getTransform = atTag "Transform"
                >>>
