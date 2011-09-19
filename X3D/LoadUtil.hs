@@ -3,6 +3,7 @@ module X3D.LoadUtil ( stringToBool
                     , stringToFloat
                     , stringToList
                     , atTag
+                    , maybeChild
                     , maybeArray
                     , maybeProperty
                     ) where
@@ -29,7 +30,9 @@ stringToList :: (Arrow a) => (Read b) => a String [b]
 stringToList = arr (\x -> map (read . fixFloats)
                           (split (dropDelims $ dropBlanks $ oneOf ", \n\r\t") x))
 
-atTag tag = deep (isElem >>> hasName tag)
+atTag tag = isElem >>> hasName tag
+
+maybeChild g = (getChildren >>> g >>> (arr Just)) `orElse` (constA Nothing)
 
 maybeArray = arrIO (\x -> case x of
                             Nothing -> do

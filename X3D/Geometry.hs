@@ -1,7 +1,10 @@
 {-# LANGUAGE Arrows, ExistentialQuantification, NoMonomorphismRestriction #-}
 module X3D.Geometry ( X3DGeometryNode (..)
                     , getGeometry
+                    , getIndexedFaceSet
+                    , getNormal
                     , drawGeometry
+                    , mixedListToTriangles
                     , X3DIndexedFaceSet (..)
                     , X3DCoordinate (..)
                     , X3DNormal (..)
@@ -70,10 +73,12 @@ applyIndices points index dimensions = foldl (\xs ui ->
                                        []
                                        index                              
 
-mixedListToTriangles :: [[GLuint]] -> [GLuint]
 mixedListToTriangles ([]) = []
-mixedListToTriangles ((a:b:c:[]):xs) = [a,b,c] ++ (mixedListToTriangles xs)
-mixedListToTriangles ((a:b:c:d:[]):xs) = [a,b,c,a,c,d] ++ (mixedListToTriangles xs)
+mixedListToTriangles (f:fs) = let len = (length f)
+                              in concat [ [ f !! 0
+                                          , f !! (i - 1) 
+                                          , f !! i ]
+                                          | i <- [2..(len - 1)] ] ++ (mixedListToTriangles fs)
 
 listToTriangles :: (Arrow a) => a [GLuint] [GLuint]
 listToTriangles = proc x -> do
@@ -95,16 +100,16 @@ applyAllIndices = arr (\ (vertices, normals, indices, texCoords, texCoordIndices
 getIndexedFaceSet = atTag "IndexedFaceSet"
                     >>>
                     proc x -> do
-                      coordinate <- getCoordinate -< x
+                      coordinate <- getCoordinate <<< getChildren -< x
                       vertices <- arr cPoint -< coordinate
 
                       indices <- listToTriangles <<< stringToList <<< getAttrValue "coordIndex" -< x
                       facesCount <- (arr length) -< indices
 
-                      normal <- getNormal -< x
+                      normal <- maybeChild getNormal -< x
                       normals <- maybeProperty nVector -< normal
 
-                      texCoord <- getTexCoord -< x
+                      texCoord <- maybeChild getTexCoord -< x
                       texCoords <- maybeProperty tcPoint -< texCoord
                       texCoordIndices <- listToTriangles <<< stringToList <<< getAttrValue "texCoordIndex" -< x
 
@@ -153,21 +158,19 @@ data X3DNormal = X3DNormal
     }
               deriving (Show)
 
-getNormal = (atTag "Normal"
+getNormal = atTag "Normal"
             >>>
             proc x -> do
               vectors <- stringToList <<< getAttrValue "vector" -< x
-              returnA -< Just X3DNormal { nVector = vectors }
-            ) `orElse` (constA Nothing)
+              returnA -< X3DNormal { nVector = vectors }
 
 data X3DTextureCoordinate = X3DTextureCoordinate
     { tcPoint :: [Float]
     }
                             deriving (Show)
 
-getTexCoord = (atTag "TextureCoordinate"
+getTexCoord = atTag "TextureCoordinate"
                >>>
                proc x -> do
                  points <- stringToList <<< getAttrValue "point" -< x
-                 returnA -< Just X3DTextureCoordinate { tcPoint = points }
-              ) `orElse` (constA Nothing)
+                 returnA -< X3DTextureCoordinate { tcPoint = points }

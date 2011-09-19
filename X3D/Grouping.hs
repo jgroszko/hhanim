@@ -2,6 +2,7 @@
 module X3D.Grouping ( X3DChildNode (..)
                     , getTransform
                     , draw
+                    , getChildNode
                     ) where
 
 import Control.Arrow
@@ -13,6 +14,7 @@ import X3D.ChildNode
 import X3D.LoadUtil
 import X3D.Matrices
 import X3D.Shape
+import X3D.HAnim
 
 data X3DGroup = X3DGroup { gChildren :: [X3DChildNode]
                          }
@@ -29,7 +31,7 @@ instance X3DChildNode_ X3DGroup where
 getGroup = atTag "Group"
            >>>
            proc x -> do
-             children <- listA getChildNode -< x
+             children <- listA getChildNode <<< getChildren -< x
 
              returnA -< X3DChildNode X3DGroup { gChildren = children }
 
@@ -88,7 +90,7 @@ getNegativeRotation = stringToList
 
 getChildNode = getChildren
                >>>
-               getGroup `orElse` getTransform `orElse` getShape
+               (getGroup <+> getTransform <+> getShape <+> getHumanoid)
 
 getTransform = atTag "Transform"
                >>>

@@ -91,19 +91,18 @@ getMaterial = atTag "Material"
 
 getAppearanceChildren = getChildren
                         >>>
-                        getImageTexture `orElse` getMaterial
+                        (getImageTexture <+> getMaterial)
 
 data X3DAppearance = X3DAppearance
     { aChildren :: [X3DAppearanceChildNode]
     }
                      deriving (Show)    
 
-getAppearance = (atTag "Appearance"
-                 >>>
-                 proc x -> do
+getAppearance = atTag "Appearance"
+                >>>
+                proc x -> do
                    children <- listA getAppearanceChildren -< x
-                   returnA -< Just X3DAppearance { aChildren = children }
-                ) `orElse` (constA Nothing)
+                   returnA -< X3DAppearance { aChildren = children }
 
 drawAppearance :: X3DAppearance -> IO ()
 drawAppearance a = do

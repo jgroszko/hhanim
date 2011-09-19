@@ -30,7 +30,7 @@ instance X3DChildNode_ X3DShape where
 getShape = atTag "Shape"
            >>>
            proc x -> do
-             appearance <- getAppearance -< x
-             geometry <- getGeometry -< x
+             appearance <- maybeChild getAppearance -< x
+             geometry <- getGeometry <<< getChildren -< x
              returnA -< X3DChildNode X3DShape { sAppearance = appearance
                                               , sGeometry = geometry }

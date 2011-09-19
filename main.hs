@@ -66,7 +66,7 @@ makeState file = do
    lp <- newIORef (Position (-1) (-1))
    sr <- newIORef True
    cc <- newIORef (cycle clearColors)
-   model <- (loadTransform file)
+   model <- (loadChildNode file)
    modelRef <- newIORef model
    mo <- newIORef (Modifiers Up Up Up)
    return $ State {
