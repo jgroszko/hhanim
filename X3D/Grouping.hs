@@ -1,8 +1,9 @@
 {-# LANGUAGE ExistentialQuantification, Arrows, NoMonomorphismRestriction #-}
-module X3D.Grouping ( X3DChildNode (..)
+module X3D.Grouping ( ChildNode(..)
                     , getTransform
-                    , draw
-                    , getChildNode
+                    , drawTransform
+                    , getGroup
+                    , drawGroup
                     ) where
 
 import Control.Arrow
@@ -10,46 +11,30 @@ import Text.XML.HXT.Core
 
 import Graphics.UI.GLUT
 
-import X3D.ChildNode
+import {-# SOURCE #-} X3D.ChildNode
 import X3D.LoadUtil
 import X3D.Matrices
 import X3D.Shape
-import X3D.HAnim
 
-data X3DGroup = X3DGroup { gChildren :: [X3DChildNode]
-                         }
-                deriving (Show)
-                         
-drawGroup :: X3DGroup -> IO ()
+drawGroup :: ChildNode -> IO ()
 drawGroup group = do
-  mapM draw (gChildren group)
+  mapM drawChildNode (gChildren group)
   return ()
-
-instance X3DChildNode_ X3DGroup where
-    draw = drawGroup
 
 getGroup = atTag "Group"
            >>>
            proc x -> do
              children <- listA getChildNode <<< getChildren -< x
 
-             returnA -< X3DChildNode X3DGroup { gChildren = children }
+             returnA -< Group { gChildren = children }
 
-data X3DTransform = X3DTransform { tMatrix :: GLmatrix GLfloat
-                                 , tChildren :: [X3DChildNode]
-                                 }
-                  deriving (Show)
-
-drawTransform :: X3DTransform -> IO ()
+drawTransform :: ChildNode -> IO ()
 drawTransform transform = do
   preservingMatrix (do
                      multMatrix (tMatrix transform) 
-                     mapM draw (tChildren transform)
+                     mapM drawChildNode (tChildren transform)
                    )
   return ()
-
-instance X3DChildNode_ X3DTransform where
-    draw = drawTransform
 
 getTranslation = stringToList
                  >>>
@@ -88,10 +73,6 @@ getNegativeRotation = stringToList
                                    _ -> matIdentity
                           )
 
-getChildNode = getChildren
-               >>>
-               (getGroup <+> getTransform <+> getShape <+> getHumanoid)
-
 getTransform = atTag "Transform"
                >>>
                proc x -> do
@@ -109,5 +90,5 @@ getTransform = atTag "Transform"
 
                  children <- listA getChildNode -< x
 
-                 returnA -< X3DChildNode X3DTransform { tMatrix = m
-                                                      , tChildren = children }
+                 returnA -< Transform { tMatrix = m
+                                      , tChildren = children }

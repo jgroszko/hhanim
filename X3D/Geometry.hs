@@ -1,11 +1,10 @@
 {-# LANGUAGE Arrows, ExistentialQuantification, NoMonomorphismRestriction #-}
-module X3D.Geometry ( X3DGeometryNode (..)
+module X3D.Geometry ( Geometry(..)
                     , getGeometry
                     , getIndexedFaceSet
                     , getNormal
                     , drawGeometry
                     , mixedListToTriangles
-                    , X3DIndexedFaceSet (..)
                     , X3DCoordinate (..)
                     , X3DNormal (..)
                     , X3DTextureCoordinate (..)
@@ -22,49 +21,36 @@ import Graphics.UI.GLUT
 import X3D.LoadUtil
 import X3D.CalculateNormals
 
-class X3DGeometryNode_ a where
-    drawGeometry :: a -> IO ()
+data Geometry = 
+    IndexedFaceSet { ifsVertices :: Ptr Float
+                   , ifsIndices :: Ptr GLuint
+                   , ifsIndicesCount :: Int
+                   , ifsTexCoords :: Maybe (Ptr Float)
+                   , ifsNormals :: Maybe (Ptr Float) }
+    deriving (Show)
 
-data X3DGeometryNode = forall a. (X3DGeometryNode_ a, Show a) => X3DGeometryNode a
+drawGeometry indexedFaceSet =
+    let vertices = (ifsVertices indexedFaceSet)
+        indices = (ifsIndices indexedFaceSet)
+        indicesCount = fromIntegral (ifsIndicesCount indexedFaceSet)
+    in do
+      clientState VertexArray $= Enabled
+      arrayPointer VertexArray $= VertexArrayDescriptor 3 Float 0 vertices
 
-instance X3DGeometryNode_ X3DGeometryNode where
-    drawGeometry (X3DGeometryNode node) = drawGeometry node
+      case (ifsNormals indexedFaceSet) of
+        Nothing -> do clientState NormalArray $= Disabled
+        Just normals -> do clientState NormalArray $= Enabled
+                           arrayPointer NormalArray $= VertexArrayDescriptor 3 Float 0 normals
 
-instance Show X3DGeometryNode where
-    show (X3DGeometryNode node) = show node
+      case (ifsTexCoords indexedFaceSet) of
+        Nothing -> do clientState TextureCoordArray $= Disabled
+        Just texCoords -> do clientState TextureCoordArray $= Enabled
+                             arrayPointer TextureCoordArray $= VertexArrayDescriptor 2 Float 0 texCoords
 
-data X3DIndexedFaceSet = X3DIndexedFaceSet
-    { ifsVertices :: Ptr Float
-    , ifsIndices :: Ptr GLuint
-    , ifsIndicesCount :: Int
-    , ifsTexCoords :: Maybe (Ptr Float)
-    , ifsNormals :: Maybe (Ptr Float)
-    }
-                      deriving (Show)
-
-instance X3DGeometryNode_ X3DIndexedFaceSet where
-    drawGeometry indexedFaceSet =
-        let vertices = (ifsVertices indexedFaceSet)
-            indices = (ifsIndices indexedFaceSet)
-            indicesCount = fromIntegral (ifsIndicesCount indexedFaceSet)
-        in do
-          clientState VertexArray $= Enabled
-          arrayPointer VertexArray $= VertexArrayDescriptor 3 Float 0 vertices
-
-          case (ifsNormals indexedFaceSet) of
-            Nothing -> do clientState NormalArray $= Disabled
-            Just normals -> do clientState NormalArray $= Enabled
-                               arrayPointer NormalArray $= VertexArrayDescriptor 3 Float 0 normals
-
-          case (ifsTexCoords indexedFaceSet) of
-            Nothing -> do clientState TextureCoordArray $= Disabled
-            Just texCoords -> do clientState TextureCoordArray $= Enabled
-                                 arrayPointer TextureCoordArray $= VertexArrayDescriptor 2 Float 0 texCoords
-
-          clientState IndexArray $= Enabled
-          drawElements Triangles indicesCount UnsignedInt indices
+      clientState IndexArray $= Enabled
+      drawElements Triangles indicesCount UnsignedInt indices
   
-          return ()
+      return ()
 
 applyIndices points index dimensions = foldl (\xs ui ->
                                                   let i = fromIntegral ui in
@@ -131,15 +117,14 @@ getIndexedFaceSet = atTag "IndexedFaceSet"
                       finalTexCoords <- maybeArray -< texCoords
                       finalNormals <- maybeArray -< normals
 
-                      returnA -< X3DGeometryNode X3DIndexedFaceSet { ifsVertices = finalVertices
-                                                                   , ifsIndices = finalIndices
-                                                                   , ifsIndicesCount = facesCount
-                                                                   , ifsTexCoords = finalTexCoords
-                                                                   , ifsNormals = finalNormals
-                                                                   }
+                      returnA -< IndexedFaceSet { ifsVertices = finalVertices
+                                                , ifsIndices = finalIndices
+                                                , ifsIndicesCount = facesCount
+                                                , ifsTexCoords = finalTexCoords
+                                                , ifsNormals = finalNormals }
 
 getGeometry :: (ArrowChoice cat, ArrowXml cat, ArrowIO cat) =>
-               cat (NTree XNode) X3DGeometryNode
+               cat (NTree XNode) Geometry
 getGeometry = getIndexedFaceSet
 
 data X3DCoordinate = X3DCoordinate

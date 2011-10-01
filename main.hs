@@ -52,7 +52,7 @@ data State = State {
    lastPosition :: IORef Position,
    shouldRotate :: IORef Bool,
    colorCycle :: IORef [Color4 GLclampf],
-   model :: IORef [X3DChildNode],
+   model :: IORef [ChildNode],
    modifiers :: IORef Modifiers
    }
 
@@ -109,8 +109,8 @@ display state = do
 
    clear [ ColorBuffer, DepthBuffer ]
    
-   transforms <- get (model state)
-   mapM draw transforms
+   nodes <- get (model state)
+   mapM drawChildNode nodes
 
    flush
    swapBuffers

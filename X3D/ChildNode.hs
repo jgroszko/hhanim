@@ -1,15 +1,31 @@
 {-# LANGUAGE ExistentialQuantification #-}
-module X3D.ChildNode ( X3DChildNode (..)
-                     , X3DChildNode_ (..)
+module X3D.ChildNode ( ChildNode(..)
+                     , getChildNode
+                     , drawChildNode
                      ) where
 
-class X3DChildNode_ a where
-    draw :: a -> IO ()
+import Text.XML.HXT.Core
+import Graphics.UI.GLUT
 
-data X3DChildNode = forall a. (X3DChildNode_ a, Show a) => X3DChildNode a
+import X3D.Appearance
+import X3D.Geometry
+import X3D.Shape
+import X3D.Grouping
 
-instance X3DChildNode_ X3DChildNode where
-    draw (X3DChildNode node) = draw node
+data ChildNode =
+               Shape { sAppearance :: Maybe Appearance
+                     , sGeometry :: Geometry }
+               | Group { gChildren :: [ChildNode] }
+               | Transform { tMatrix :: GLmatrix GLfloat
+                           , tChildren :: [ChildNode] }
+                 deriving (Show)
 
-instance Show X3DChildNode where
-    show (X3DChildNode a) = show a
+getChildNode = getChildren
+               >>>
+               getShape <+> getGroup <+> getTransform
+
+drawChildNode :: ChildNode -> IO ()
+drawChildNode node = case node of
+                       Shape _ _ -> drawShape node
+                       Group _ -> drawGroup node
+                       Transform _ _ -> drawTransform node

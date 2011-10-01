@@ -1,6 +1,6 @@
 {-# LANGUAGE Arrows, NoMonomorphismRestriction, ExistentialQuantification #-}
 
-module X3D.Appearance ( X3DAppearance (..)
+module X3D.Appearance ( Appearance(..)
                       , getAppearance
                       , drawAppearance
                       ) where
@@ -10,50 +10,40 @@ import Text.XML.HXT.Core
 import Graphics.UI.GLUT
 
 import X3D.LoadUtil
+import X3D.Node
 
-class X3DAppearanceChildNode_ a where
-    drawAppearanceChild :: a -> IO ()
+data AppearanceChild =
+                     Material { mDiffuse :: Color4 GLfloat
+                              , mAmbient :: Color4 GLfloat
+                              , mSpecular :: Color4 GLfloat
+                              , mEmission :: Color4 GLfloat
+                              , mShininess :: GLfloat
+                              , mName :: String }
+                     | ImageTexture { itUrl :: String
+                                    , itName :: String }
+                       deriving (Show)
 
-data X3DAppearanceChildNode = forall a. (X3DAppearanceChildNode_ a, Show a) => X3DAppearanceChildNode a
-
-instance X3DAppearanceChildNode_ X3DAppearanceChildNode where
-    drawAppearanceChild (X3DAppearanceChildNode a) = drawAppearanceChild a
-
-instance Show X3DAppearanceChildNode where
-    show (X3DAppearanceChildNode a) = show a
-
-data X3DImageTexture = X3DImageTexture
-    { itUrl :: String
-    }
-                     deriving (Show)
-
-instance X3DAppearanceChildNode_ X3DImageTexture where
-    drawAppearanceChild _ = return ()
+drawImageTexture it = do
+  return ()
 
 getImageTexture = atTag "ImageTexture"
                   >>>
                   proc x -> do
                     url <- getAttrValue "url" -< x
-                    returnA -< X3DAppearanceChildNode X3DImageTexture { itUrl = url }
 
-data X3DMaterial = X3DMaterial
-    { mDiffuse :: Color4 GLfloat
-    , mAmbient :: Color4 GLfloat
-    , mSpecular :: Color4 GLfloat
-    , mEmission :: Color4 GLfloat
-    , mShininess :: GLfloat
-    }
-                 deriving (Show)
+                    name <- getAttrValue "DEF" -< x
 
-instance X3DAppearanceChildNode_ X3DMaterial where
-    drawAppearanceChild m = do
-      materialDiffuse Front $= (mDiffuse m)
-      materialAmbient Front $= (mAmbient m)
-      materialSpecular Front $= (mSpecular m)
-      materialEmission Front $= (mEmission m)
-      materialShininess Front $= (mShininess m)
+                    returnA -< ImageTexture { itUrl = url 
+                                            , itName = name }
 
-      return ()
+drawMaterial m = do
+  materialDiffuse Front $= (mDiffuse m)
+  materialAmbient Front $= (mAmbient m)
+  materialSpecular Front $= (mSpecular m)
+  materialEmission Front $= (mEmission m)
+  materialShininess Front $= (mShininess m)
+
+  return ()
 
 getFloatDefault attr def = getAttrValue attr
                            >>>
@@ -70,6 +60,7 @@ getColorDefault attr def = getAttrValue attr
                                         _ -> def
                                )
 
+getMaterial :: IOSLA (XIOState NodeDict) XmlTree AppearanceChild
 getMaterial = atTag "Material"
               >>>
               proc x -> do
@@ -82,29 +73,35 @@ getMaterial = atTag "Material"
 
                 ambientColor <- arr (\((Color4 r g b _), ambient) -> Color4 (r*ambient) (g*ambient) (b*ambient) 1.0) -< (diffuseColor, ambientIntensity)
 
-                returnA -< X3DAppearanceChildNode X3DMaterial { mDiffuse = diffuseColor
-                                                              , mAmbient = ambientColor
-                                                              , mSpecular = specularColor
-                                                              , mEmission = emissiveColor
-                                                              , mShininess = shininess
-                                                              }
+                name <- getAttrValue "DEF" -< x
 
+                returnA -< Material { mDiffuse = diffuseColor
+                                    , mAmbient = ambientColor
+                                    , mSpecular = specularColor
+                                    , mEmission = emissiveColor
+                                    , mShininess = shininess
+                                    , mName = name }
+
+getAppearanceChildren :: IOSLA (XIOState NodeDict) XmlTree AppearanceChild
 getAppearanceChildren = getChildren
                         >>>
                         (getImageTexture <+> getMaterial)
 
-data X3DAppearance = X3DAppearance
-    { aChildren :: [X3DAppearanceChildNode]
-    }
-                     deriving (Show)    
+data Appearance = Appearance
+    { aChildren :: [AppearanceChild] }
+    deriving (Show) 
 
 getAppearance = atTag "Appearance"
                 >>>
                 proc x -> do
                    children <- listA getAppearanceChildren -< x
-                   returnA -< X3DAppearance { aChildren = children }
+                   returnA -< Appearance { aChildren = children }
 
-drawAppearance :: X3DAppearance -> IO ()
+drawAppearanceChild a = case a of
+                          ImageTexture _ _ -> drawImageTexture a
+                          Material _ _ _ _ _ _ -> drawMaterial a
+
+drawAppearance :: Appearance -> IO ()
 drawAppearance a = do
     mapM drawAppearanceChild (aChildren a)
     return ()
