@@ -1,74 +1,55 @@
 {-# LANGUAGE Arrows, NoMonomorphismRestriction #-}
-module X3D.HAnim ( X3DHAnimHumanoid (..)
-                 , getHumanoid
-                 , getSegment
+module X3D.HAnim ( getHAnimSegment
+                 , drawHAnimSegment
+                 , getHAnimJoint
+                 , drawHAnimJoint
+                 , getHAnimHumanoid
+                 , drawHAnimHumanoid
                  ) where
 
 import Control.Arrow
 import Text.XML.HXT.Core
 import X3D.LoadUtil
-import X3D.ChildNode
-import {-# SOURCE #-} X3D.Grouping (getChildNode)
+import {-# SOURCE #-} X3D.ChildNode
 
-data X3DHAnimSegment = X3DHAnimSegment
-    { hasChildren :: [X3DChildNode]
-    }
-                     deriving (Show)
-
-getSegment = atTag "HAnimSegment"
-             >>>
-             proc x -> do
-               children <- listA getChildNode -< x
-                           
-               returnA -< X3DHAnimSegment { hasChildren = children }
-
-drawSegment segment = do
-  mapM draw (hasChildren segment)
+drawHAnimSegment s = do
+  mapM drawChildNode (hasChildren s)
   return ()
 
-data X3DHAnimJoint = X3DHAnimJoint
-    { hajJoints :: [X3DHAnimJoint]
-    , hajSegment :: Maybe X3DHAnimSegment
-    , hajUSE :: String
-    , hajDEF :: String
-    }
-                     deriving (Show)
+getHAnimSegment = atTag "HAnimSegment"
+                  >>>
+                  proc x -> do
+                    children <- listA getChildNode -< x
+                              
+                    name <- getAttrValue "DEF" -< x
 
-getJoint = atTag "HAnimJoint"
-           >>>
-           proc x -> do
-             joints <- listA (getChildren >>> getJoint) -< x
-             segment <- maybeChild getSegment -< x
+                    returnA -< HAnimSegment { hasChildren = children
+                                            , X3D.ChildNode.hasName = name }
 
-             use <- getAttrValue "USE" -< x
-             def <- getAttrValue "DEF" -< x
-
-             returnA -< X3DHAnimJoint { hajJoints = joints
-                                      , hajSegment = segment
-                                      , hajUSE = use 
-                                      , hajDEF = def }
-
-drawJoint joint = do
-  case (hajSegment joint) of
-    Nothing -> return ()
-    Just segment -> drawSegment segment
-
-  mapM drawJoint (hajJoints joint)
+drawHAnimJoint j = do
+  mapM drawChildNode (hajJoints j)
   return ()
 
-data X3DHAnimHumanoid = X3DHAnimHumanoid
-    { hahJoints :: [X3DHAnimJoint]
-    }
-                        deriving (Show)
+getHAnimJoint = atTag "HAnimJoint"
+                >>>
+                proc x -> do
+                  joints <- listA getChildNode -< x
 
-instance X3DChildNode_ X3DHAnimHumanoid where
-    draw humanoid = do
-      mapM drawJoint (hahJoints humanoid)
-      return ()
+                  name <- getAttrValue "DEF" -< x
 
-getHumanoid = atTag "HAnimHumanoid"
-              >>>
-              proc x -> do
-                joints <- listA (getChildren >>> getJoint) -< x
-                
-                returnA -< X3DChildNode X3DHAnimHumanoid { hahJoints = joints }
+                  returnA -< HAnimJoint { hajJoints = joints
+                                        , hajName = name }
+
+drawHAnimHumanoid h = do
+  mapM drawChildNode (hahChildren h)
+  return ()
+
+getHAnimHumanoid = atTag "HAnimHumanoid"
+                   >>>
+                   proc x -> do
+                     children <- listA getChildNode -< x
+
+                     name <- getAttrValue "DEF" -< x
+                                 
+                     returnA -< HAnimHumanoid { hahChildren = children
+                                              , hahName = name }

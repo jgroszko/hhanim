@@ -24,7 +24,7 @@ drawGroup group = do
 getGroup = atTag "Group"
            >>>
            proc x -> do
-             children <- listA getChildNode <<< getChildren -< x
+             children <- listA getChildNode -< x
 
              returnA -< Group { gChildren = children }
 
